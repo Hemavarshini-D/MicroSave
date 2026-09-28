@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroSave - Repayments</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .info-panel {
+            background-color: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: var(--border-radius);
+            padding: 1.2rem;
+            margin-top: 1rem;
+            margin-bottom: 1.2rem;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+            font-size: 0.95rem;
+        }
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+        .outstanding-highlight {
+            color: var(--danger-color);
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">MicroSave</a>
+        <div class="navbar-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/groups">Groups</a>
+            <a href="/members">Members</a>
+            <a href="/contributions">Contributions</a>
+            <a href="/loans">Loans</a>
+            <a href="/repayments">Repayments</a>
+            <a href="/swagger-ui/index.html" target="_blank">Swagger API</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="section-header">
+            <div>
+                <h2>Loan Repayments</h2>
+                <p>Log installment repayments against active member loans</p>
+            </div>
+        </div>
+
+        <div id="alert-box"></div>
+
+        <div class="form-container">
+            <h3>Record Repayment</h3>
+            <form id="repayment-form" class="mt-1">
+                <div class="form-group">
+                    <label for="loanId">Select Active Loan</label>
+                    <select id="loanId" name="loanId" class="form-control" required onchange="onLoanSelected()">
+                        <!-- Loaded via JS -->
+                    </select>
+                </div>
+
+                <!-- Live Loan & Outstanding Info Panel -->
+                <div id="loan-info-panel" class="info-panel" style="display:none;">
+                    <div class="info-row">
+                        <span>Borrower:</span>
+                        <strong id="display-borrower-name">-</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Original Loan Amount:</span>
+                        <strong id="display-original-amount">₹0.00</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Total Repaid So Far:</span>
+                        <strong id="display-repaid-amount">₹0.00</strong>
+                    </div>
+                    <div class="info-row" style="border-top: 1px dashed #ccc; padding-top: 0.5rem; margin-top: 0.5rem;">
+                        <span>Current Outstanding Amount:</span>
+                        <span id="display-outstanding-amount" class="outstanding-highlight">₹0.00</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Repayment Amount (₹)</label>
+                    <input type="number" id="amount" name="amount" min="0.01" step="0.01" class="form-control" required>
+                    <small style="color: #666;">Repayment cannot exceed the current outstanding balance.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="repaymentDate">Date</label>
+                    <input type="date" id="repaymentDate" name="repaymentDate" class="form-control" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Record Repayment</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <div style="padding: 1rem; border-bottom: 1px solid #eee;">
+                <h3>Repayment Transaction History</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Receipt ID</th>
+                        <th>Loan ID</th>
+                        <th>Borrower</th>
+                        <th>Amount Paid</th>
+                        <th>Payment Date</th>
+                    </tr>
+                </thead>
+                <tbody id="repayments-table-body">
+                    <tr><td colspan="5" class="text-center">Loading repayments...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        let loansData = [];
+        let currentOutstanding = 0;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('repaymentDate').valueAsDate = new Date();
+            await loadActiveLoans();
+            await loadRepayments();
+            
+            const form = document.getElementById('repayment-form');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+                
+                try {
+                    await apiCall('/api/repayments', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const repaidVal = parseFloat(data.amount);
+                    if (repaidVal >= currentOutstanding) {
+                        showMessage('success', 'Repayment recorded! Loan is now fully settled and status changed to PAID.');
+                    } else {
+                        showMessage('success', 'Repayment of ' + formatCurrency(data.amount) + ' recorded successfully!');
+                    }
+
+                    form.reset();
+                    document.getElementById('repaymentDate').valueAsDate = new Date();
+                    document.getElementById('loan-info-panel').style.display = 'none';
+
+                    await loadActiveLoans();
+                    await loadRepayments();
+                } catch (error) {
+                    showMessage('danger', error.message);
+                }
+            });
+        });
+
+        async function loadActiveLoans() {
+            try {
+                loansData = await apiCall('/api/loans');
+                const activeLoans = loansData.filter(l => l.status === 'ACTIVE');
+                const select = document.getElementById('loanId');
+                select.innerHTML = '<option value="">-- Select Active Loan --</option>';
+
+                activeLoans.forEach(l => {
+                    select.innerHTML += `<option value="${l.loanId}">Loan #${l.loanId} - ${l.member.name} (Disbursed: ${formatCurrency(l.amount)})</option>`;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function onLoanSelected() {
+            const loanId = document.getElementById('loanId').value;
+            const panel = document.getElementById('loan-info-panel');
+            if (!loanId) {
+                panel.style.display = 'none';
+                currentOutstanding = 0;
+                return;
+            }
+
+            try {
+                const loan = loansData.find(l => l.loanId == loanId);
+                const repayments = await apiCall(`/api/repayments/loan/${loanId}`);
+                const totalRepaid = repayments.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+                const outstanding = parseFloat(loan.amount) - totalRepaid;
+
+                currentOutstanding = outstanding;
+                document.getElementById('display-borrower-name').textContent = loan.member.name;
+                document.getElementById('display-original-amount').textContent = formatCurrency(loan.amount);
+                document.getElementById('display-repaid-amount').textContent = formatCurrency(totalRepaid);
+                document.getElementById('display-outstanding-amount').textContent = formatCurrency(outstanding);
+                document.getElementById('amount').max = outstanding;
+                document.getElementById('amount').placeholder = `Max ${outstanding}`;
+
+                panel.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadRepayments() {
+            try {
+                const repayments = await apiCall('/api/repayments');
+                const tbody = document.getElementById('repayments-table-body');
+                tbody.innerHTML = '';
+
+                if (repayments.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#888;">No repayments recorded yet.</td></tr>';
+                    return;
+                }
+
+                repayments.slice().reverse().forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>#${r.repaymentId}</td>
+                        <td>Loan #${r.loan.loanId}</td>
+                        <td><strong>${r.loan.member.name}</strong></td>
+                        <td>${formatCurrency(r.amount)}</td>
+                        <td>${formatDate(r.repaymentDate)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

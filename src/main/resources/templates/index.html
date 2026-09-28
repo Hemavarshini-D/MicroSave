@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroSave - Self-Help Group Savings Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .hero {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 3.5rem 2rem;
+            text-align: center;
+            border-radius: var(--border-radius);
+            margin-bottom: 2.5rem;
+            box-shadow: var(--box-shadow);
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.8rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+        }
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+        .feature-card {
+            background-color: var(--card-bg);
+            padding: 1.8rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            border-top: 4px solid var(--accent-color);
+            transition: transform 0.2s;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+        }
+        .feature-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 0.8rem;
+            font-size: 1.25rem;
+        }
+        .feature-card p {
+            font-size: 0.95rem;
+            color: #555;
+            margin-bottom: 1.2rem;
+        }
+        .rule-box {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 2rem;
+        }
+        .rule-box h3 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        .rule-box ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .rule-box li {
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .rule-tag {
+            background-color: #e8f4fd;
+            color: #2980b9;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">MicroSave</a>
+        <div class="navbar-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/groups">Groups</a>
+            <a href="/members">Members</a>
+            <a href="/contributions">Contributions</a>
+            <a href="/loans">Loans</a>
+            <a href="/repayments">Repayments</a>
+            <a href="/swagger-ui/index.html" target="_blank">Swagger API</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="hero">
+            <h1>MicroSave Tracker</h1>
+            <p>A Self-Help Group (SHG) Savings & Internal Loan Disbursement Management System built with Spring Boot, JPA, MySQL, and Thymeleaf.</p>
+            <div class="hero-buttons">
+                <a href="/dashboard" class="btn btn-primary" style="background-color: #fff; color: #2c3e50; font-weight: bold;">Go to Dashboard</a>
+                <a href="/swagger-ui/index.html" target="_blank" class="btn btn-success">View Swagger API Docs</a>
+            </div>
+        </div>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>👥 Group & Member Management</h3>
+                <p>Register Self-Help Groups and enroll active community members with contact details and joining records.</p>
+                <a href="/groups" class="btn btn-sm btn-primary">Manage Groups</a>
+                <a href="/members" class="btn btn-sm btn-success">Manage Members</a>
+            </div>
+
+            <div class="feature-card">
+                <h3>💰 Savings Contributions</h3>
+                <p>Record periodic weekly or monthly savings deposits per member to continuously expand the group's lending pool.</p>
+                <a href="/contributions" class="btn btn-sm btn-primary">Record Contribution</a>
+            </div>
+
+            <div class="feature-card">
+                <h3>📑 Loan Disbursement</h3>
+                <p>Disburse internal micro-loans against available pooled capital with strict validation on pool balances.</p>
+                <a href="/loans" class="btn btn-sm btn-primary">Disburse Loan</a>
+            </div>
+
+            <div class="feature-card">
+                <h3>💳 Repayment Tracking</h3>
+                <p>Log loan repayments dynamically reducing outstanding debt, automatically marking loans as PAID when settled.</p>
+                <a href="/repayments" class="btn btn-sm btn-primary">Record Repayment</a>
+            </div>
+        </div>
+
+        <div class="rule-box">
+            <h3>⚡ Core Business Rules Enforced in Service Layer</h3>
+            <ul>
+                <li>
+                    <span class="rule-tag">Rule 1</span>
+                    <strong>Available Group Pool:</strong> Total Contributions minus Outstanding Loans (Loan Amount - Total Repayments).
+                </li>
+                <li>
+                    <span class="rule-tag">Rule 2</span>
+                    <strong>Single Active Loan Policy:</strong> A member with an active unpaid loan cannot obtain a second loan.
+                </li>
+                <li>
+                    <span class="rule-tag">Rule 3</span>
+                    <strong>Pool Balance Limit:</strong> Loan disbursement cannot exceed the group's current available pool balance.
+                </li>
+                <li>
+                    <span class="rule-tag">Rule 4</span>
+                    <strong>Repayment & Status Transition:</strong> Repayment cannot exceed outstanding loan amount; once fully repaid, status updates from ACTIVE to PAID.
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script th:src="@{/js/app.js}"></script>
+</body>
+</html>

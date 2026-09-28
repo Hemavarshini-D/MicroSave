@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroSave - Groups</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">MicroSave</a>
+        <div class="navbar-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/groups">Groups</a>
+            <a href="/members">Members</a>
+            <a href="/contributions">Contributions</a>
+            <a href="/loans">Loans</a>
+            <a href="/repayments">Repayments</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="section-header">
+            <h2>Groups</h2>
+        </div>
+
+        <div id="alert-box"></div>
+
+        <div class="form-container">
+            <h3>Create New Group</h3>
+            <form id="group-form" class="mt-1">
+                <div class="form-group">
+                    <label for="groupName">Group Name</label>
+                    <input type="text" id="groupName" name="groupName" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Group</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Group Name</th>
+                        <th>Created Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="groups-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="pool-details" class="card mt-2" style="display:none;">
+            <h3>Group Pool Details</h3>
+            <p><strong>Total Contributions:</strong> <span id="pool-contrib"></span></p>
+            <p><strong>Outstanding Loans:</strong> <span id="pool-loans"></span></p>
+            <p><strong>Available Pool:</strong> <span id="pool-available"></span></p>
+        </div>
+    </div>
+
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGroups();
+            setupFormSubmit('group-form', '/api/groups', 'Group created successfully!', loadGroups);
+        });
+
+        async function loadGroups() {
+            try {
+                const groups = await apiCall('/api/groups');
+                const tbody = document.getElementById('groups-table-body');
+                tbody.innerHTML = '';
+                
+                groups.forEach(group => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${group.groupId}</td>
+                        <td>${group.groupName}</td>
+                        <td>${formatDate(group.createdDate)}</td>
+                        <td><button class="btn btn-sm btn-primary" onclick="viewPool(${group.groupId})">View Pool</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        
+        async function viewPool(groupId) {
+            try {
+                const pool = await apiCall(`/api/groups/${groupId}/pool`);
+                document.getElementById('pool-contrib').textContent = formatCurrency(pool.totalContributions);
+                document.getElementById('pool-loans').textContent = formatCurrency(pool.outstandingLoans);
+                document.getElementById('pool-available').textContent = formatCurrency(pool.availablePool);
+                document.getElementById('pool-details').style.display = 'block';
+            } catch(e) {
+                showMessage('danger', e.message);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroSave - Dashboard</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .group-selector-bar {
+            background-color: var(--card-bg);
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .group-selector-bar label {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        .group-selector-bar select {
+            min-width: 250px;
+            padding: 0.5rem;
+            border-radius: var(--border-radius);
+            border: 1px solid #ccc;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 2rem;
+        }
+        .card-stat {
+            background-color: var(--card-bg);
+            padding: 1.2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            border-left: 5px solid var(--accent-color);
+        }
+        .card-stat h4 {
+            color: #666;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        .card-stat p {
+            font-size: 1.7rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .card-stat.pool-card {
+            border-left-color: var(--success-color);
+        }
+        .card-stat.pool-card p {
+            color: var(--success-color);
+        }
+        .card-stat.outstanding-card {
+            border-left-color: var(--danger-color);
+        }
+        .card-stat.outstanding-card p {
+            color: var(--danger-color);
+        }
+        
+        /* Direct Action Hub Box on Dashboard */
+        .action-hub {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        .action-tabs {
+            display: flex;
+            background-color: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            overflow-x: auto;
+        }
+        .action-tab-btn {
+            padding: 0.9rem 1.4rem;
+            border: none;
+            background: none;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .action-tab-btn:hover {
+            background-color: #e2e8f0;
+            color: var(--primary-color);
+        }
+        .action-tab-btn.active {
+            background-color: var(--card-bg);
+            color: var(--accent-color);
+            border-bottom: 3px solid var(--accent-color);
+        }
+        .action-panel {
+            display: none;
+            padding: 1.5rem;
+        }
+        .action-panel.active {
+            display: block;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.2rem;
+            align-items: end;
+        }
+        .tables-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+        .badge-active {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .badge-paid {
+            background-color: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">MicroSave</a>
+        <div class="navbar-menu" id="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/groups">Groups</a>
+            <a href="/members">Members</a>
+            <a href="/contributions">Contributions</a>
+            <a href="/loans">Loans</a>
+            <a href="/repayments">Repayments</a>
+            <a href="/swagger-ui/index.html" target="_blank">Swagger API</a>
+        </div>
+        <div id="auth-actions" style="display: flex; align-items: center; gap: 0.75rem;">
+            <span id="user-display" style="font-size: 0.9rem; color: #ecf0f1; display: none;">👤 <span id="username-val">admin</span></span>
+            <button id="logout-btn" class="btn btn-sm" style="display: none; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="handleLogout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <!-- Combined Login View -->
+    <div id="login-view" class="container" style="display: block;">
+        <div class="form-container" style="max-width: 440px; margin-top: 3.5rem;">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <h2 style="color: var(--primary-color); margin-bottom: 0.4rem; font-size: 1.6rem;">Welcome Back</h2>
+                <p style="color: #666; font-size: 0.95rem;">Sign in to access your MicroSave Dashboard</p>
+            </div>
+
+            <div id="login-alert-box" class="alert alert-danger" style="display: none;"></div>
+
+            <form id="combined-login-form" novalidate>
+                <div class="form-group">
+                    <label for="login-username">Email or Username</label>
+                    <input type="text" id="login-username" class="form-control" placeholder="Enter username or email" autocomplete="username" value="admin" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <input type="password" id="login-password" class="form-control" placeholder="Enter password" autocomplete="current-password" value="admin123" required style="padding-right: 2.75rem;">
+                        <button type="button" id="login-toggle-password" aria-label="Toggle password visibility" title="Toggle password visibility" style="position: absolute; right: 0.75rem; background: none; border: none; cursor: pointer; color: var(--secondary-color); padding: 0.25rem; display: flex; align-items: center;">
+                            <svg id="login-eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="combined-login-btn" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">Sign In to Dashboard</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.25rem; font-size: 0.85rem; color: #888;">
+                <span>Default credentials pre-filled. Click <strong>Sign In to Dashboard</strong>.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard View -->
+    <div id="dashboard-view" class="container" style="display: none;">
+        <div class="section-header">
+            <div>
+                <h2>Dashboard & Quick Actions</h2>
+                <p>Track metrics and perform SHG operations directly</p>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-primary" onclick="switchTab('contrib-panel', 'contrib-tab')">+ Add Contribution</button>
+                <button class="btn btn-sm btn-success" onclick="switchTab('loan-panel', 'loan-tab')">+ Disburse Loan</button>
+            </div>
+        </div>
+
+        <!-- Global Alert Notifications -->
+        <div id="alert-box" class="alert"></div>
+
+        <!-- Interactive Direct Actions Box on Dashboard -->
+        <div class="action-hub">
+            <div class="action-tabs">
+                <button id="contrib-tab" class="action-tab-btn active" onclick="switchTab('contrib-panel', 'contrib-tab')">
+                    💰 Record Contribution
+                </button>
+                <button id="member-tab" class="action-tab-btn" onclick="switchTab('member-panel', 'member-tab')">
+                    👥 Add Member
+                </button>
+                <button id="group-tab" class="action-tab-btn" onclick="switchTab('group-panel', 'group-tab')">
+                    🏢 Create Group
+                </button>
+                <button id="loan-tab" class="action-tab-btn" onclick="switchTab('loan-panel', 'loan-tab')">
+                    📑 Disburse Loan
+                </button>
+                <button id="repay-tab" class="action-tab-btn" onclick="switchTab('repay-panel', 'repay-tab')">
+                    💳 Record Repayment
+                </button>
+            </div>
+
+            <!-- Tab 1: Direct Contribution Entry -->
+            <div id="contrib-panel" class="action-panel active">
+                <form id="dash-contrib-form">
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-contrib-member">Select Member *</label>
+                            <select id="dash-contrib-member" name="memberId" class="form-control" required>
+                                <option value="">Loading members...</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-contrib-amount">Amount (₹) *</label>
+                            <input type="number" id="dash-contrib-amount" name="amount" min="1" step="0.01" class="form-control" placeholder="e.g. 500" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-contrib-date">Date *</label>
+                            <input type="date" id="dash-contrib-date" name="contributionDate" class="form-control" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary" style="width:100%; height:46px;">
+                                Record Contribution
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 2: Direct Member Entry -->
+            <div id="member-panel" class="action-panel">
+                <form id="dash-member-form">
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-member-name">Member Name *</label>
+                            <input type="text" id="dash-member-name" name="name" class="form-control" placeholder="e.g. Anitha" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-member-phone">Phone Number</label>
+                            <input type="text" id="dash-member-phone" name="phone" class="form-control" placeholder="e.g. 9876543210">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-member-group">Assign to Group *</label>
+                            <select id="dash-member-group" name="groupId" class="form-control" required>
+                                <option value="">Loading groups...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-success" style="width:100%; height:46px;">
+                                + Add Member
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 3: Direct Group Entry -->
+            <div id="group-panel" class="action-panel">
+                <form id="dash-group-form">
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0; grid-column: span 2;">
+                            <label for="dash-group-name">Group Name *</label>
+                            <input type="text" id="dash-group-name" name="groupName" class="form-control" placeholder="e.g. Ooty Women's SHG" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary" style="width:100%; height:46px;">
+                                + Create Group
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 4: Direct Loan Disbursement -->
+            <div id="loan-panel" class="action-panel">
+                <form id="dash-loan-form">
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-loan-member">Borrower Member *</label>
+                            <select id="dash-loan-member" name="memberId" class="form-control" required onchange="checkLoanPoolLimit()">
+                                <option value="">Loading members...</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-loan-amount">Loan Amount (₹) *</label>
+                            <input type="number" id="dash-loan-amount" name="amount" min="1" step="0.01" class="form-control" placeholder="e.g. 5000" required oninput="checkLoanPoolLimit()">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-loan-date">Loan Date *</label>
+                            <input type="date" id="dash-loan-date" name="loanDate" class="form-control" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-success" style="width:100%; height:46px;">
+                                Disburse Loan
+                            </button>
+                        </div>
+                    </div>
+                    <div id="dash-loan-warning" style="display:none; color:var(--danger-color); font-weight:600; margin-top:0.8rem;">
+                        ⚠️ Warning: Requested loan exceeds current available group pool!
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 5: Direct Repayment Entry -->
+            <div id="repay-panel" class="action-panel">
+                <form id="dash-repay-form">
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-repay-loan">Select Active Loan *</label>
+                            <select id="dash-repay-loan" name="loanId" class="form-control" required onchange="onDashLoanSelected()">
+                                <option value="">Loading active loans...</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-repay-amount">Repayment Amount (₹) *</label>
+                            <input type="number" id="dash-repay-amount" name="amount" min="0.01" step="0.01" class="form-control" placeholder="e.g. 2000" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="dash-repay-date">Date *</label>
+                            <input type="date" id="dash-repay-date" name="repaymentDate" class="form-control" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary" style="width:100%; height:46px;">
+                                Record Repayment
+                            </button>
+                        </div>
+                    </div>
+                    <div id="dash-repay-info" style="display:none; color:#555; margin-top:0.6rem; font-weight:500;">
+                        Outstanding Debt: <span id="dash-loan-outstanding" style="color:var(--danger-color); font-weight:bold;">₹0.00</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Group Selector Filter -->
+        <div class="group-selector-bar">
+            <div>
+                <label for="group-select">Select Self-Help Group (SHG):</label>
+                <select id="group-select" onchange="onGroupChanged()">
+                    <option value="">Loading Groups...</option>
+                </select>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-primary" onclick="refreshAllDashboard()">🔄 Refresh Data</button>
+            </div>
+        </div>
+
+        <!-- Statistics Metrics Cards -->
+        <div class="dashboard-grid">
+            <div class="card-stat">
+                <h4>Total Contributions</h4>
+                <p id="total-contributions">₹0.00</p>
+            </div>
+            <div class="card-stat outstanding-card">
+                <h4>Outstanding Loans</h4>
+                <p id="outstanding-loans">₹0.00</p>
+            </div>
+            <div class="card-stat pool-card">
+                <h4>Available Pool</h4>
+                <p id="available-pool">₹0.00</p>
+            </div>
+            <div class="card-stat">
+                <h4>Number of Members</h4>
+                <p id="total-members">0</p>
+            </div>
+            <div class="card-stat">
+                <h4>Active Loans</h4>
+                <p id="active-loans-count">0</p>
+            </div>
+        </div>
+
+        <!-- Data Feeds Section -->
+        <div class="tables-section">
+            <!-- Active Loans Feed -->
+            <div>
+                <div class="section-header">
+                    <h3>Active Loans</h3>
+                    <a href="/loans" class="btn btn-sm btn-primary">Full Loans Page</a>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Loan ID</th>
+                                <th>Member Name</th>
+                                <th>Disbursed Amount</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Quick Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="active-loans-tbody">
+                            <tr><td colspan="6" class="text-center">Loading active loans...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Contributions Feed -->
+            <div>
+                <div class="section-header">
+                    <h3>Recent Contributions</h3>
+                    <a href="/contributions" class="btn btn-sm btn-primary">Full Contributions Page</a>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Member Name</th>
+                                <th>Amount Deposited</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-contributions-tbody">
+                            <tr><td colspan="4" class="text-center">Loading recent contributions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Repayments Feed -->
+            <div>
+                <div class="section-header">
+                    <h3>Recent Repayments</h3>
+                    <a href="/repayments" class="btn btn-sm btn-primary">Full Repayments Page</a>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Receipt ID</th>
+                                <th>Loan ID</th>
+                                <th>Member</th>
+                                <th>Repaid Amount</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-repayments-tbody">
+                            <tr><td colspan="5" class="text-center">Loading recent repayments...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        let groupsList = [];
+        let membersList = [];
+        let activeLoansList = [];
+        let currentPool = 0;
+
+        function switchTab(panelId, tabId) {
+            document.querySelectorAll('.action-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.action-tab-btn').forEach(t => t.classList.remove('active'));
+            
+            const panel = document.getElementById(panelId);
+            const tab = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            if (tab) tab.classList.add('active');
+        }
+
+        function checkAuthState() {
+            const user = sessionStorage.getItem('microsave_user');
+            const loginView = document.getElementById('login-view');
+            const dashboardView = document.getElementById('dashboard-view');
+            const userDisplay = document.getElementById('user-display');
+            const usernameVal = document.getElementById('username-val');
+            const logoutBtn = document.getElementById('logout-btn');
+
+            if (user) {
+                if (loginView) loginView.style.display = 'none';
+                if (dashboardView) dashboardView.style.display = 'block';
+                if (userDisplay) {
+                    userDisplay.style.display = 'inline-block';
+                    if (usernameVal) usernameVal.textContent = user;
+                }
+                if (logoutBtn) logoutBtn.style.display = 'inline-block';
+                refreshAllDashboard();
+            } else {
+                if (loginView) loginView.style.display = 'block';
+                if (dashboardView) dashboardView.style.display = 'none';
+                if (userDisplay) userDisplay.style.display = 'none';
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            }
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem('microsave_user');
+            checkAuthState();
+        }
+
+        function setupCombinedLogin() {
+            const form = document.getElementById('combined-login-form');
+            if (!form) return;
+
+            const usernameInput = document.getElementById('login-username');
+            const passwordInput = document.getElementById('login-password');
+            const togglePasswordBtn = document.getElementById('login-toggle-password');
+            const eyeIcon = document.getElementById('login-eye-icon');
+            const alertBox = document.getElementById('login-alert-box');
+            const submitBtn = document.getElementById('combined-login-btn');
+
+            if (togglePasswordBtn && passwordInput && eyeIcon) {
+                togglePasswordBtn.addEventListener('click', () => {
+                    const isPassword = passwordInput.getAttribute('type') === 'password';
+                    passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+                    if (isPassword) {
+                        eyeIcon.innerHTML = `
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        `;
+                    } else {
+                        eyeIcon.innerHTML = `
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        `;
+                    }
+                });
+            }
+
+            function showLoginAlert(type, message) {
+                if (!alertBox) return;
+                alertBox.className = `alert alert-${type}`;
+                alertBox.textContent = message;
+                alertBox.style.display = 'block';
+            }
+
+            usernameInput.addEventListener('input', () => {
+                usernameInput.style.borderColor = '#ccc';
+                if (alertBox) alertBox.style.display = 'none';
+            });
+
+            passwordInput.addEventListener('input', () => {
+                passwordInput.style.borderColor = '#ccc';
+                if (alertBox) alertBox.style.display = 'none';
+            });
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
+
+                if (!username) {
+                    showLoginAlert('danger', 'Please enter your username or email.');
+                    usernameInput.style.borderColor = 'var(--danger-color)';
+                    usernameInput.focus();
+                    return;
+                }
+
+                if (!password) {
+                    showLoginAlert('danger', 'Please enter your password.');
+                    passwordInput.style.borderColor = 'var(--danger-color)';
+                    passwordInput.focus();
+                    return;
+                }
+
+                if (password.length < 4) {
+                    showLoginAlert('danger', 'Password must be at least 4 characters.');
+                    passwordInput.style.borderColor = 'var(--danger-color)';
+                    passwordInput.focus();
+                    return;
+                }
+
+                showLoginAlert('success', 'Login successful! Opening dashboard...');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Opening dashboard...';
+
+                setTimeout(() => {
+                    sessionStorage.setItem('microsave_user', username);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign In to Dashboard';
+                    if (alertBox) alertBox.style.display = 'none';
+                    checkAuthState();
+                }, 400);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dash-contrib-date').value = today;
+            document.getElementById('dash-loan-date').value = today;
+            document.getElementById('dash-repay-date').value = today;
+
+            setupCombinedLogin();
+            setupFormSubmissions();
+            checkAuthState();
+        });
+
+        function setupFormSubmissions() {
+            // 1. Record Contribution
+            setupFormSubmit('dash-contrib-form', '/api/contributions', 'Contribution recorded successfully!', async () => {
+                document.getElementById('dash-contrib-date').value = new Date().toISOString().split('T')[0];
+                await refreshAllDashboard();
+            });
+
+            // 2. Add Member
+            setupFormSubmit('dash-member-form', '/api/members', 'Member added successfully!', async () => {
+                await refreshAllDashboard();
+            });
+
+            // 3. Create Group
+            setupFormSubmit('dash-group-form', '/api/groups', 'Group created successfully!', async () => {
+                await refreshAllDashboard();
+            });
+
+            // 4. Disburse Loan
+            setupFormSubmit('dash-loan-form', '/api/loans', 'Loan disbursed successfully!', async () => {
+                document.getElementById('dash-loan-date').value = new Date().toISOString().split('T')[0];
+                await refreshAllDashboard();
+            });
+
+            // 5. Record Repayment
+            setupFormSubmit('dash-repay-form', '/api/repayments', 'Repayment recorded successfully!', async () => {
+                document.getElementById('dash-repay-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('dash-repay-info').style.display = 'none';
+                await refreshAllDashboard();
+            });
+        }
+
+        async function refreshAllDashboard() {
+            await loadGroupsAndDropdowns();
+            await loadMembersAndDropdowns();
+            await loadActiveLoansDropdowns();
+            await loadDashboardMetricsAndFeeds();
+        }
+
+        async function loadGroupsAndDropdowns() {
+            try {
+                groupsList = await apiCall('/api/groups');
+                const groupSelect = document.getElementById('group-select');
+                const memberGroupSelect = document.getElementById('dash-member-group');
+
+                if (groupsList.length === 0) {
+                    groupSelect.innerHTML = '<option value="">No Groups Found (Create one in Create Group tab)</option>';
+                    memberGroupSelect.innerHTML = '<option value="">No Groups Found</option>';
+                    return;
+                }
+
+                const prevVal = groupSelect.value;
+                const options = groupsList.map(g => `<option value="${g.groupId}">${g.groupName}</option>`).join('');
+                
+                groupSelect.innerHTML = options;
+                memberGroupSelect.innerHTML = '<option value="">-- Select Group --</option>' + options;
+
+                if (prevVal && groupsList.some(g => g.groupId == prevVal)) {
+                    groupSelect.value = prevVal;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadMembersAndDropdowns() {
+            try {
+                membersList = await apiCall('/api/members');
+                const contribMember = document.getElementById('dash-contrib-member');
+                const loanMember = document.getElementById('dash-loan-member');
+
+                if (membersList.length === 0) {
+                    contribMember.innerHTML = '<option value="">No members yet (Add one in Add Member tab)</option>';
+                    loanMember.innerHTML = '<option value="">No members yet</option>';
+                    return;
+                }
+
+                const options = '<option value="">-- Select Member --</option>' + 
+                    membersList.map(m => `<option value="${m.memberId}">${m.name} (${m.group ? m.group.groupName : 'No Group'})</option>`).join('');
+                
+                contribMember.innerHTML = options;
+                loanMember.innerHTML = options;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadActiveLoansDropdowns() {
+            try {
+                const loans = await apiCall('/api/loans');
+                activeLoansList = loans.filter(l => l.status === 'ACTIVE');
+                const repaySelect = document.getElementById('dash-repay-loan');
+
+                if (activeLoansList.length === 0) {
+                    repaySelect.innerHTML = '<option value="">No active loans</option>';
+                    return;
+                }
+
+                repaySelect.innerHTML = '<option value="">-- Select Active Loan --</option>' +
+                    activeLoansList.map(l => `<option value="${l.loanId}">Loan #${l.loanId} - ${l.member.name} (${formatCurrency(l.amount)})</option>`).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function onDashLoanSelected() {
+            const loanId = document.getElementById('dash-repay-loan').value;
+            const info = document.getElementById('dash-repay-info');
+            const outSpan = document.getElementById('dash-loan-outstanding');
+            const amtInput = document.getElementById('dash-repay-amount');
+
+            if (!loanId) {
+                info.style.display = 'none';
+                return;
+            }
+
+            try {
+                const loan = activeLoansList.find(l => l.loanId == loanId);
+                const repayments = await apiCall(`/api/repayments/loan/${loanId}`);
+                const totalRepaid = repayments.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+                const outstanding = parseFloat(loan.amount) - totalRepaid;
+
+                outSpan.textContent = formatCurrency(outstanding);
+                amtInput.max = outstanding;
+                amtInput.placeholder = `Max ${outstanding}`;
+                info.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function checkLoanPoolLimit() {
+            const amount = parseFloat(document.getElementById('dash-loan-amount').value) || 0;
+            const warning = document.getElementById('dash-loan-warning');
+            if (amount > currentPool && currentPool >= 0) {
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+        }
+
+        async function onGroupChanged() {
+            const select = document.getElementById('group-select');
+            const groupId = select.value;
+            if (groupId) {
+                await loadGroupPool(groupId);
+            }
+        }
+
+        async function loadGroupPool(groupId) {
+            try {
+                const pool = await apiCall(`/api/groups/${groupId}/pool`);
+                document.getElementById('total-contributions').textContent = formatCurrency(pool.totalContributions);
+                document.getElementById('outstanding-loans').textContent = formatCurrency(pool.outstandingLoans);
+                document.getElementById('available-pool').textContent = formatCurrency(pool.availablePool);
+                currentPool = parseFloat(pool.availablePool);
+            } catch (e) {
+                console.error('Error loading group pool:', e);
+            }
+        }
+
+        async function loadDashboardMetricsAndFeeds() {
+            try {
+                // Update Group Pool
+                const groupSelect = document.getElementById('group-select');
+                if (groupSelect.value) {
+                    await loadGroupPool(groupSelect.value);
+                } else if (groupsList.length > 0) {
+                    await loadGroupPool(groupsList[0].groupId);
+                }
+
+                // Update Total Members
+                document.getElementById('total-members').textContent = membersList.length;
+
+                // Update Active Loans Count & Table
+                document.getElementById('active-loans-count').textContent = activeLoansList.length;
+                const loansTbody = document.getElementById('active-loans-tbody');
+                if (activeLoansList.length === 0) {
+                    loansTbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color: #888;">No active loans currently.</td></tr>';
+                } else {
+                    loansTbody.innerHTML = activeLoansList.slice(0, 5).map(l => `
+                        <tr>
+                            <td>#${l.loanId}</td>
+                            <td><strong>${l.member.name}</strong></td>
+                            <td>${formatCurrency(l.amount)}</td>
+                            <td>${formatDate(l.loanDate)}</td>
+                            <td><span class="badge badge-active">${l.status}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="quickRepayLoan(${l.loanId})">Repay</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Update Recent Contributions Feed
+                const contributions = await apiCall('/api/contributions');
+                const contribTbody = document.getElementById('recent-contributions-tbody');
+                if (contributions.length === 0) {
+                    contribTbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color: #888;">No contributions recorded yet.</td></tr>';
+                } else {
+                    contribTbody.innerHTML = contributions.slice().reverse().slice(0, 5).map(c => `
+                        <tr>
+                            <td>#${c.contributionId}</td>
+                            <td><strong>${c.member.name}</strong></td>
+                            <td>${formatCurrency(c.amount)}</td>
+                            <td>${formatDate(c.contributionDate)}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Update Recent Repayments Feed
+                const repayments = await apiCall('/api/repayments');
+                const repayTbody = document.getElementById('recent-repayments-tbody');
+                if (repayments.length === 0) {
+                    repayTbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color: #888;">No repayments recorded yet.</td></tr>';
+                } else {
+                    repayTbody.innerHTML = repayments.slice().reverse().slice(0, 5).map(r => `
+                        <tr>
+                            <td>#${r.repaymentId}</td>
+                            <td>Loan #${r.loan.loanId}</td>
+                            <td><strong>${r.loan.member.name}</strong></td>
+                            <td>${formatCurrency(r.amount)}</td>
+                            <td>${formatDate(r.repaymentDate)}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Error loading dashboard feeds:', e);
+            }
+        }
+
+        function quickRepayLoan(loanId) {
+            switchTab('repay-panel', 'repay-tab');
+            const select = document.getElementById('dash-repay-loan');
+            select.value = loanId;
+            onDashLoanSelected();
+            select.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

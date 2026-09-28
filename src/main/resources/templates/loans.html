@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroSave - Loans</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .info-panel {
+            background-color: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+        .rule-warning {
+            color: var(--danger-color);
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-top: 0.4rem;
+            display: none;
+        }
+        .rule-success {
+            color: var(--success-color);
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-top: 0.4rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">MicroSave</a>
+        <div class="navbar-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/groups">Groups</a>
+            <a href="/members">Members</a>
+            <a href="/contributions">Contributions</a>
+            <a href="/loans">Loans</a>
+            <a href="/repayments">Repayments</a>
+            <a href="/swagger-ui/index.html" target="_blank">Swagger API</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="section-header">
+            <div>
+                <h2>Loans Management</h2>
+                <p>Internal small credit disbursement against pooled group savings</p>
+            </div>
+        </div>
+
+        <div id="alert-box"></div>
+
+        <div class="form-container">
+            <h3>Disburse Internal Loan</h3>
+            <form id="loan-form" class="mt-1">
+                <div class="form-group">
+                    <label for="memberId">Select Member</label>
+                    <select id="memberId" name="memberId" class="form-control" required onchange="onMemberSelected()">
+                        <!-- Loaded via JS -->
+                    </select>
+                </div>
+
+                <!-- Live Member & Pool Info Panel -->
+                <div id="member-info-panel" class="info-panel" style="display:none;">
+                    <div class="info-row">
+                        <span>Group Name:</span>
+                        <strong id="display-group-name">-</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Available Group Pool:</span>
+                        <strong id="display-available-pool" style="color: var(--success-color); font-size: 1.1rem;">₹0.00</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Current Outstanding Loan:</span>
+                        <strong id="display-member-loan">₹0.00</strong>
+                    </div>
+                    <div id="active-loan-warning" class="rule-warning">
+                        ❌ Member already has an active loan. (Rule 2 Violation)
+                    </div>
+                    <div id="active-loan-ok" class="rule-success">
+                        ✅ No active loan. Member eligible for disbursement.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Loan Amount (₹)</label>
+                    <input type="number" id="amount" name="amount" min="1" step="0.01" class="form-control" required oninput="validateLoanAmount()">
+                    <div id="pool-limit-warning" class="rule-warning">
+                        ❌ Insufficient group balance for this loan. (Rule 3 Violation)
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="loanDate">Disbursement Date</label>
+                    <input type="date" id="loanDate" name="loanDate" class="form-control" required>
+                </div>
+
+                <button type="submit" id="disburse-btn" class="btn btn-primary" style="width: 100%;">Disburse Loan</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <div style="padding: 1rem; border-bottom: 1px solid #eee;">
+                <h3>All Disbursed Loans</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Loan ID</th>
+                        <th>Member Name</th>
+                        <th>Amount Disbursed</th>
+                        <th>Disbursement Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="loans-table-body">
+                    <tr><td colspan="5" class="text-center">Loading loans...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script th:src="@{/js/app.js}"></script>
+    <script>
+        let currentAvailablePool = 0;
+        let memberHasActiveLoan = false;
+        let membersData = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('loanDate').valueAsDate = new Date();
+            await loadMembersList();
+            await loadLoans();
+            setupFormSubmit('loan-form', '/api/loans', 'Loan disbursed successfully!', async () => {
+                await loadLoans();
+                onMemberSelected();
+            });
+        });
+
+        async function loadMembersList() {
+            try {
+                membersData = await apiCall('/api/members');
+                const select = document.getElementById('memberId');
+                select.innerHTML = '<option value="">-- Select Member --</option>';
+                membersData.forEach(m => {
+                    select.innerHTML += `<option value="${m.memberId}">${m.name} (${m.group.groupName})</option>`;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function onMemberSelected() {
+            const memberId = document.getElementById('memberId').value;
+            const panel = document.getElementById('member-info-panel');
+            const activeWarn = document.getElementById('active-loan-warning');
+            const activeOk = document.getElementById('active-loan-ok');
+            const disburseBtn = document.getElementById('disburse-btn');
+
+            if (!memberId) {
+                panel.style.display = 'none';
+                currentAvailablePool = 0;
+                memberHasActiveLoan = false;
+                return;
+            }
+
+            try {
+                const member = membersData.find(m => m.memberId == memberId);
+                const pool = await apiCall(`/api/groups/${member.group.groupId}/pool`);
+                const balance = await apiCall(`/api/members/${memberId}/balance`);
+
+                document.getElementById('display-group-name').textContent = member.group.groupName;
+                document.getElementById('display-available-pool').textContent = formatCurrency(pool.availablePool);
+                document.getElementById('display-member-loan').textContent = formatCurrency(balance.outstandingLoan);
+
+                currentAvailablePool = Number(pool.availablePool);
+                memberHasActiveLoan = Number(balance.outstandingLoan) > 0;
+
+                panel.style.display = 'block';
+
+                if (memberHasActiveLoan) {
+                    activeWarn.style.display = 'block';
+                    activeOk.style.display = 'none';
+                } else {
+                    activeWarn.style.display = 'none';
+                    activeOk.style.display = 'block';
+                }
+
+                validateLoanAmount();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function validateLoanAmount() {
+            const amountInput = document.getElementById('amount');
+            const requested = parseFloat(amountInput.value) || 0;
+            const poolWarn = document.getElementById('pool-limit-warning');
+
+            if (requested > currentAvailablePool && currentAvailablePool >= 0) {
+                poolWarn.style.display = 'block';
+            } else {
+                poolWarn.style.display = 'none';
+            }
+        }
+
+        async function loadLoans() {
+            try {
+                const loans = await apiCall('/api/loans');
+                const tbody = document.getElementById('loans-table-body');
+                tbody.innerHTML = '';
+
+                if (loans.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:#888;">No loans recorded yet.</td></tr>';
+                    return;
+                }
+
+                loans.slice().reverse().forEach(l => {
+                    const badgeClass = l.status === 'ACTIVE' ? 'badge-active' : 'badge-paid';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>#${l.loanId}</td>
+                        <td><strong>${l.member.name}</strong></td>
+                        <td>${formatCurrency(l.amount)}</td>
+                        <td>${formatDate(l.loanDate)}</td>
+                        <td><span class="badge ${badgeClass}">${l.status}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
